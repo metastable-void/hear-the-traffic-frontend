@@ -4,18 +4,31 @@
         <meta charset="utf-8">
         <title>Hear the Traffic (2025)</title>
         <style>
-
+            body {
+                font-family: system-ui, sans-serif;
+            }
+            #guage {
+                margin-block: 1rem;
+                display: block;
+                padding: 0;
+                inline-size: 100%;
+            }
+            #toggle-sound {
+                font: inherit;
+            }
         </style>
     </head>
     <body>
         <h1>Hear the Traffic</h1>
         <p>By 真空 (2025)</p>
         <button id="toggle-sound">Unmute/Mute</button>
+        <meter id="guage" min="0" max="255"></meter>
         <script>
             const toggleButton = document.querySelector('#toggle-sound');
+            const guage = document.querySelector('#guage');
             let sound = false;
 
-            let realData = new Array(120).fill(0);
+            let absData = new Array(120).fill(0);
 
             toggleButton.addEventListener('click', () => {
                 if (sound) {
@@ -29,21 +42,33 @@
 
             let ac = null;
             let osc = null;
-            let freq = 30;
+            let dynamicRange = 3;
+            let worklet = null;
+            let gain = null;
+            let gainGain = null;
+            let analyser = null;
+
+            let analyserArray = null;
 
             const update = () => {
                 fetch('https://metrics.nc.menhera.org/_traffic.json').then(async (res) => {
                     if (!res.ok) return;
                     const data = await res.json();
-                    freq = data[0] * 2;
-                    realData = [0, ... data.slice(7, 126)];
+                    dynamicRange = data[0];
+                    absData = [0, ... data.slice(1)];
 
                     if (osc) {
-                        let len = realData.length;
+                        let len = absData.length;
+                        const realData = new Array(len).fill(0);
                         const imagData = new Array(len).fill(0);
+                        for (let i = 0; i < len; i++) {
+                            let phase = Math.random() * 2 * Math.PI;
+                            realData[i] = absData[i] * Math.cos(phase);
+                            imagData[i] = absData[i] * Math.sin(phase);
+                        }
                         const periodicWave = ac.createPeriodicWave(realData, imagData);
-                        osc.frequency.value = freq;
                         osc.setPeriodicWave(periodicWave);
+                        gain.gain.value = 33 * dynamicRange;
                     }
                 }).catch((e) => {
                     console.error(e);
@@ -54,15 +79,41 @@
 
             function sound_start() {
                 ac = new AudioContext();
+                analyser = ac.createAnalyser();
+                analyser.fftSize = 8192;
+                const bufferLength = analyser.frequencyBinCount;
+                analyserArray = new Uint8Array(bufferLength);
                 osc = ac.createOscillator();
-                osc.frequency.value = freq;
-                let len = realData.length;
+                osc.frequency.value = 0.0667;
+                let len = absData.length;
+                const realData = new Array(len).fill(0);
                 const imagData = new Array(len).fill(0);
+                for (let i = 0; i < len; i++) {
+                    let phase = Math.random() * 2 * Math.PI;
+                    realData[i] = absData[i] * Math.cos(phase);
+                    imagData[i] = absData[i] * Math.sin(phase);
+                }
                 const periodicWave = ac.createPeriodicWave(realData, imagData);
                 osc.setPeriodicWave(periodicWave);
-                osc.connect(ac.destination);
-                ac.resume();
-                osc.start();
+                osc.connect(analyser);
+                ac.audioWorklet.addModule('fm-processor.js').then(() => {
+                    worklet = new AudioWorkletNode(ac, 'fm-processor');
+                    const freqParam = worklet.parameters.get('frequency');
+                    const gainParam = worklet.parameters.get('gain');
+                    gain = new GainNode(ac);
+                    gainGain = new GainNode(ac);
+                    gainGain.gain.value = 0.2;
+                    freqParam.value = 440;
+                    osc.connect(gain);
+                    osc.connect(gainGain);
+                    gain.connect(freqParam);
+                    gainParam.value = -0.5;
+                    gainGain.connect(gainParam);
+                    gain.gain.value = dynamicRange * 33;
+                    worklet.connect(ac.destination);
+                    ac.resume();
+                    osc.start();
+                });
             }
 
             function sound_stop() {
@@ -70,9 +121,25 @@
                 ac.close();
                 ac = null;
                 osc = null;
+                analyser = null;
+            }
+
+            function draw() {
+                requestAnimationFrame(draw);
+
+                if (!analyser) return;
+                analyser.getByteTimeDomainData(analyserArray);
+                let sum = 0;
+                analyserArray.forEach(v => {
+                    sum += v;
+                });
+                let value = sum / analyserArray.length;
+                guage.value = value;
             }
 
             update();
+
+            draw();
         </script>
     </body>
 </html>
