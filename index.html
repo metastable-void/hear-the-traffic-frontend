@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Hear the Traffic (2025)</title>
+        <style>
+
+        </style>
+    </head>
+    <body>
+        <h1>Hear the Traffic</h1>
+        <p>By 真空 (2025)</p>
+        <button id="toggle-sound">Unmute/Mute</button>
+        <script>
+            const toggleButton = document.querySelector('#toggle-sound');
+            let sound = false;
+
+            let realData = new Array(240).fill(0);
+
+            toggleButton.addEventListener('click', () => {
+                if (sound) {
+                    sound = false;
+                    sound_stop();
+                } else {
+                    sound = true;
+                    sound_start();
+                }
+            });
+
+            let ac = null;
+            let osc = null;
+
+            const update = () => {
+                fetch('https://metrics.nc.menhera.org/_traffic.json').then(async (res) => {
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    realData = data;
+
+                    if (osc) {
+                        let len = realData.length;
+                        const imagData = new Array(len).fill(0);
+                        osc.setPeriodicWave(realData, imagData);
+                    }
+                }).catch((e) => {
+                    console.error(e);
+                });
+            };
+
+            setInterval(update, 15000);
+
+            function sound_start() {
+                ac = new AudioContext();
+                osc = ac.createOscillator();
+                osc.frequency = 30;
+                let len = realData.length;
+                const imagData = new Array(len).fill(0);
+                osc.setPeriodicWave(realData, imagData);
+                osc.connect(ac.destination);
+                ac.resume();
+                osc.start();
+            }
+
+            function sound_stop() {
+                if (!ac) return;
+                ac.close();
+                ac = null;
+                osc = null;
+            }
+
+            update();
+        </script>
+    </body>
+</html>
