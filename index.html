@@ -27,6 +27,10 @@
         <button id="toggle-sound">Unmute/Mute</button>
         <meter id="guage" min="0" max="255"></meter>
         <meter id="guage2" min="0" max="255"></meter>
+        <details>
+            <summary>Information</summary>
+            <p>This makes sound from real-time spectrum information of the Internet traffic graph, captured directly from <a href="https://www.nc.menhera.org/">AS63806</a> backbone.</p>
+        </details>
         <script>
             const toggleButton = document.querySelector('#toggle-sound');
             const guage = document.querySelector('#guage');
@@ -150,8 +154,8 @@
                     const gainParam = worklet.parameters.get('gain');
                     gain = new GainNode(ac);
                     gainGain = new GainNode(ac);
-                    gainGain.gain.value = 0.2;
-                    freqParam.value = 440;
+                    gainGain.gain.value = 0.3;
+                    freqParam.value = 220;
                     osc.connect(gain);
                     osc.connect(gainGain);
                     gain.connect(freqParam);
@@ -164,8 +168,8 @@
                     const gainParam2 = worklet2.parameters.get('gain');
                     gain2 = new GainNode(ac);
                     gainGain2 = new GainNode(ac);
-                    gainGain2.gain.value = 0.2;
-                    freqParam2.value = 440;
+                    gainGain2.gain.value = 0.3;
+                    freqParam2.value = 220;
                     osc2.connect(gain2);
                     osc2.connect(gainGain2);
                     gain2.connect(freqParam2);
