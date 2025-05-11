@@ -39,7 +39,8 @@
                     if (osc) {
                         let len = realData.length;
                         const imagData = new Array(len).fill(0);
-                        osc.setPeriodicWave(realData, imagData);
+                        const periodicWave = ac.createPeriodicWave(realData, imagData);
+                        osc.setPeriodicWave(periodicWave);
                     }
                 }).catch((e) => {
                     console.error(e);
@@ -54,7 +55,8 @@
                 osc.frequency = 30;
                 let len = realData.length;
                 const imagData = new Array(len).fill(0);
-                osc.setPeriodicWave(realData, imagData);
+                const periodicWave = ac.createPeriodicWave(realData, imagData);
+                osc.setPeriodicWave(periodicWave);
                 osc.connect(ac.destination);
                 ac.resume();
                 osc.start();
