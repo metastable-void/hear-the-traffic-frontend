@@ -7,11 +7,14 @@
             body {
                 font-family: system-ui, sans-serif;
             }
-            #guage {
+            #guage, #guage2 {
                 margin-block: 1rem;
                 display: block;
                 padding: 0;
                 inline-size: 100%;
+            }
+            #guage2 {
+                direction: rtl;
             }
             #toggle-sound {
                 font: inherit;
@@ -23,9 +26,11 @@
         <p>By 真空 (2025)</p>
         <button id="toggle-sound">Unmute/Mute</button>
         <meter id="guage" min="0" max="255"></meter>
+        <meter id="guage2" min="0" max="255"></meter>
         <script>
             const toggleButton = document.querySelector('#toggle-sound');
             const guage = document.querySelector('#guage');
+            const guage2 = document.querySelector('#guage2');
             let sound = false;
 
             let absData = new Array(120).fill(0);
@@ -41,24 +46,35 @@
             });
 
             let ac = null;
+
             let osc = null;
             let dynamicRange = 3;
             let worklet = null;
             let gain = null;
             let gainGain = null;
             let analyser = null;
-
             let analyserArray = null;
 
+            let osc2 = null;
+            let dynamicRange2 = 3;
+            let worklet2 = null;
+            let gain2 = null;
+            let gainGain2 = null;
+            let analyser2 = null;
+            let analyserArray2 = null;
+
             const update = () => {
-                fetch('https://metrics.nc.menhera.org/_traffic.json').then(async (res) => {
+                fetch('https://metrics.nc.menhera.org/_traffic-stereo.json').then(async (res) => {
                     if (!res.ok) return;
                     const data = await res.json();
-                    dynamicRange = data[0];
-                    absData = [0, ... data.slice(1)];
+                    dynamicRange = data.in[0];
+                    dynamicRange2 = data.out[0];
+                    absData = [0, ... data.in.slice(1)];
+                    absData2 = [0, ... data.out.slice(1)];
 
-                    if (osc) {
+                    if (osc && osc2) {
                         let len = absData.length;
+                        let len2 = absData2.length;
                         const realData = new Array(len).fill(0);
                         const imagData = new Array(len).fill(0);
                         for (let i = 0; i < len; i++) {
@@ -66,9 +82,22 @@
                             realData[i] = absData[i] * Math.cos(phase);
                             imagData[i] = absData[i] * Math.sin(phase);
                         }
+
+                        const realData2 = new Array(len2).fill(0);
+                        const imagData2 = new Array(len2).fill(0);
+                        for (let i = 0; i < len2; i++) {
+                            let phase = Math.random() * 2 * Math.PI;
+                            realData2[i] = absData2[i] * Math.cos(phase);
+                            imagData2[i] = absData2[i] * Math.sin(phase);
+                        }
+
                         const periodicWave = ac.createPeriodicWave(realData, imagData);
                         osc.setPeriodicWave(periodicWave);
                         gain.gain.value = 33 * dynamicRange;
+
+                        const periodicWave2 = ac.createPeriodicWave(realData2, imagData2);
+                        osc2.setPeriodicWave(periodicWave2);
+                        gain2.gain.value = 33 * dynamicRange2;
                     }
                 }).catch((e) => {
                     console.error(e);
@@ -96,6 +125,25 @@
                 const periodicWave = ac.createPeriodicWave(realData, imagData);
                 osc.setPeriodicWave(periodicWave);
                 osc.connect(analyser);
+
+                analyser2 = ac.createAnalyser();
+                analyser2.fftSize = 8192;
+                const bufferLength2 = analyser2.frequencyBinCount;
+                analyserArray2 = new Uint8Array(bufferLength2);
+                osc2 = ac.createOscillator();
+                osc2.frequency.value = 0.0667;
+                let len2 = absData2.length;
+                const realData2 = new Array(len2).fill(0);
+                const imagData2 = new Array(len2).fill(0);
+                for (let i = 0; i < len2; i++) {
+                    let phase = Math.random() * 2 * Math.PI;
+                    realData2[i] = absData2[i] * Math.cos(phase);
+                    imagData2[i] = absData2[i] * Math.sin(phase);
+                }
+                const periodicWave2 = ac.createPeriodicWave(realData2, imagData2);
+                osc2.setPeriodicWave(periodicWave2);
+                osc2.connect(analyser2);
+
                 ac.audioWorklet.addModule('fm-processor.js').then(() => {
                     worklet = new AudioWorkletNode(ac, 'fm-processor');
                     const freqParam = worklet.parameters.get('frequency');
@@ -110,9 +158,29 @@
                     gainParam.value = 0.5;
                     gainGain.connect(gainParam);
                     gain.gain.value = dynamicRange * 33;
-                    worklet.connect(ac.destination);
+
+                    worklet2 = new AudioWorkletNode(ac, 'fm-processor');
+                    const freqParam2 = worklet2.parameters.get('frequency');
+                    const gainParam2 = worklet2.parameters.get('gain');
+                    gain2 = new GainNode(ac);
+                    gainGain2 = new GainNode(ac);
+                    gainGain2.gain.value = 0.2;
+                    freqParam2.value = 440;
+                    osc2.connect(gain2);
+                    osc2.connect(gainGain2);
+                    gain2.connect(freqParam2);
+                    gainParam2.value = 0.5;
+                    gainGain2.connect(gainParam2);
+                    gain2.gain.value = dynamicRange2 * 33;
+
+                    const merger = ac.createChannelMerger(2);
+                    worklet.connect(merger, 0, 0);
+                    worklet2.connect(merger, 0, 1);
+                    merger.connect(ac.destination);
+
                     ac.resume();
                     osc.start();
+                    osc2.start();
                 });
             }
 
@@ -127,14 +195,23 @@
             function draw() {
                 requestAnimationFrame(draw);
 
-                if (!analyser) return;
+                if (!analyser || !analyser2) return;
                 analyser.getByteTimeDomainData(analyserArray);
+                analyser2.getByteTimeDomainData(analyserArray2);
                 let sum = 0;
                 analyserArray.forEach(v => {
                     sum += v;
                 });
                 let value = sum / analyserArray.length;
+
+                let sum2 = 0;
+                analyserArray2.forEach(v => {
+                    sum2 += v;
+                });
+                let value2 = sum2 / analyserArray2.length;
+
                 guage.value = value;
+                guage2.value = value2;
             }
 
             update();
