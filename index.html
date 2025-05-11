@@ -15,7 +15,7 @@
             const toggleButton = document.querySelector('#toggle-sound');
             let sound = false;
 
-            let realData = new Array(240).fill(0);
+            let realData = new Array(120).fill(0);
 
             toggleButton.addEventListener('click', () => {
                 if (sound) {
@@ -34,7 +34,7 @@
                 fetch('https://metrics.nc.menhera.org/_traffic.json').then(async (res) => {
                     if (!res.ok) return;
                     const data = await res.json();
-                    realData = data;
+                    realData = data.slice(0, 120);
 
                     if (osc) {
                         let len = realData.length;
