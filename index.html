@@ -107,7 +107,7 @@
                     osc.connect(gain);
                     osc.connect(gainGain);
                     gain.connect(freqParam);
-                    gainParam.value = -0.5;
+                    gainParam.value = 0.5;
                     gainGain.connect(gainParam);
                     gain.gain.value = dynamicRange * 33;
                     worklet.connect(ac.destination);
