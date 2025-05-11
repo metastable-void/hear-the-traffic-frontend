@@ -29,18 +29,20 @@
 
             let ac = null;
             let osc = null;
+            let freq = 30;
 
             const update = () => {
                 fetch('https://metrics.nc.menhera.org/_traffic.json').then(async (res) => {
                     if (!res.ok) return;
                     const data = await res.json();
-                    realData = data;
+                    freq = data[0] * 2;
+                    realData = [0, ... data.slice(7, 126)];
 
                     if (osc) {
                         let len = realData.length;
                         const imagData = new Array(len).fill(0);
                         const periodicWave = ac.createPeriodicWave(realData, imagData);
-                        osc.frequency.value = realData[0] * 2;
+                        osc.frequency.value = freq;
                         osc.setPeriodicWave(periodicWave);
                     }
                 }).catch((e) => {
@@ -53,7 +55,7 @@
             function sound_start() {
                 ac = new AudioContext();
                 osc = ac.createOscillator();
-                osc.frequency.value = realData[0] * 2;
+                osc.frequency.value = freq;
                 let len = realData.length;
                 const imagData = new Array(len).fill(0);
                 const periodicWave = ac.createPeriodicWave(realData, imagData);
